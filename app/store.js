@@ -4,11 +4,12 @@
 //   vorrat: { personId: { questionId: 'YYYY-MM-DD' } }   noted as a good question for them
 //   asked:  { personId: { questionId: 'YYYY-MM-DD' } }   asked on that day
 //   discarded: { questionId: 'YYYY-MM-DD' }              sorted out, to be deleted from fragen/ later
+//   favorites: { questionId: 'YYYY-MM-DD' }              the especially good ones
 
 const KEY = 'fragen:data:v1';
 
 function empty() {
-  return { people: [], vorrat: {}, asked: {}, discarded: {} };
+  return { people: [], vorrat: {}, asked: {}, discarded: {}, favorites: {} };
 }
 
 let data = load();
@@ -92,6 +93,17 @@ export function setDiscarded(questionId, value) {
   save();
 }
 
+// Favorites --------------------------------------------------------------------
+
+export const isFavorite = (questionId) => !!data.favorites[questionId];
+
+export function toggleFavorite(questionId) {
+  if (data.favorites[questionId]) delete data.favorites[questionId];
+  else data.favorites[questionId] = today();
+  save();
+  return !!data.favorites[questionId];
+}
+
 // Export and import ----------------------------------------------------------
 
 /** Machine part for re-import, plus a readable part per person (question texts included). */
@@ -109,11 +121,14 @@ export function exportData(questions) {
   }
   const aussortiert = Object.entries(data.discarded)
     .map(([qid, date]) => ({ id: qid, frage: text.get(qid) || '(schon gelöscht)', am: date }));
+  const favoriten = Object.entries(data.favorites)
+    .map(([qid, date]) => ({ id: qid, frage: text.get(qid) || '(schon gelöscht)', seit: date }));
   return {
     app: 'fragen',
     version: 1,
     exportiert: new Date().toISOString(),
     personen: readable,
+    favoriten,
     aussortiert,
     daten: data,
   };
@@ -144,10 +159,12 @@ export function importData(json) {
       }
     }
   }
-  for (const [qid, date] of Object.entries(incoming.discarded || {})) {
-    if (!data.discarded[qid]) {
-      data.discarded[qid] = date;
-      entries++;
+  for (const field of ['discarded', 'favorites']) {
+    for (const [qid, date] of Object.entries(incoming[field] || {})) {
+      if (!data[field][qid]) {
+        data[field][qid] = date;
+        entries++;
+      }
     }
   }
   save();

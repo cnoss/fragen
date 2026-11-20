@@ -2,7 +2,7 @@ import { decrypt } from './crypto.js';
 import {
   people, person, addPerson, renamePerson, removePerson,
   inVorrat, askedOn, toggleVorrat, toggleAsked, vorratOf, askedOf,
-  isDiscarded, discarded, setDiscarded,
+  isDiscarded, discarded, setDiscarded, isFavorite, toggleFavorite,
   exportData, importData, getPref, setPref, today,
 } from './store.js';
 
@@ -84,14 +84,17 @@ function matchesStatus(q, filter) {
 }
 
 function matchesCat(q, cat) {
-  return cat === 'alle' || (cat === 'neu' ? isNew(q) : q.cat === cat);
+  if (cat === 'alle') return true;
+  if (cat === 'neu') return isNew(q);
+  if (cat === 'favoriten') return isFavorite(q.id);
+  return q.cat === cat;
 }
 
 /** Rebuild the list for the current filter, staying on the current question if possible. */
 function applyFilter(keepId = state.list[state.index]?.id || getPref('pos', null)) {
   const f = state.filter;
   if (f.person && !person(f.person)) Object.assign(f, { person: null, status: 'alle' });
-  if (f.cat !== 'alle' && f.cat !== 'neu' && !state.cats.has(f.cat)) f.cat = 'alle';
+  if (!['alle', 'neu', 'favoriten'].includes(f.cat) && !state.cats.has(f.cat)) f.cat = 'alle';
   setPref('filter', f);
   state.list = active().filter((q) => matchesCat(q, f.cat) && matchesStatus(q, f));
   const index = state.list.findIndex((q) => q.id === keepId);
@@ -175,6 +178,7 @@ function filterBar() {
   const base = active().filter((q) => matchesStatus(q, f));
   const count = (cat) => base.filter((q) => matchesCat(q, cat)).length;
   const newCount = count('neu');
+  const favCount = count('favoriten');
 
   const chip = (value, label) => h('button', {
     type: 'button', class: 'segment', 'aria-pressed': String(f.cat === value),
@@ -184,6 +188,7 @@ function filterBar() {
   return h('section', { class: 'filters', 'aria-label': 'Kategorie' },
     h('div', { class: 'chips', role: 'group', 'aria-label': 'Kategorie' },
       chip('alle', 'Alle'),
+      (favCount > 0 || f.cat === 'favoriten') && chip('favoriten', '♥ Favoriten'),
       (newCount > 0 || f.cat === 'neu') && chip('neu', 'Neu'),
       state.db.categories.map((c) => chip(c.id, c.titel)),
     ),
@@ -236,6 +241,7 @@ function renderStage({ focus = false } = {}) {
     h('p', { class: 'qcard-meta' },
       h('span', { class: 'qcard-cat' }, cat?.titel || q.cat),
       isNew(q) && h('span', { class: 'badge badge--new' }, 'Neu'),
+      favButton(q),
     ),
     h('h2', { class: 'question', id: 'question', tabindex: '-1' }, q.text),
     h('div', { class: 'qcard-foot' },
@@ -255,6 +261,19 @@ function renderStage({ focus = false } = {}) {
     forWhom(q),
   );
   if (focus) document.getElementById('question').focus({ preventScroll: true });
+}
+
+function favButton(q) {
+  const on = isFavorite(q.id);
+  return h('button', {
+    type: 'button', class: 'fav', 'aria-pressed': String(on), 'aria-label': 'Favorit',
+    onclick: (e) => {
+      const now = toggleFavorite(q.id);
+      e.currentTarget.replaceWith(favButton(q));
+      refreshChips();
+      announce(now ? 'Als Favorit markiert.' : 'Kein Favorit mehr.');
+    },
+  }, on ? '♥' : '♡');
 }
 
 /** Small reminder on the card that a person filter is active (it lives at the bottom). */
@@ -303,6 +322,7 @@ function baseEmptyText() {
   if (name && f.status === 'vorrat') return `Noch nichts im Vorrat für ${name}. Tipp bei einer Frage auf „Vorrat“ neben dem Namen.`;
   if (name && f.status === 'gestellt') return `Du hast ${name} in dieser Auswahl noch keine Frage gestellt.`;
   if (f.cat === 'neu') return 'Gerade gibt es keine neuen Fragen.';
+  if (f.cat === 'favoriten') return 'Noch keine Favoriten. Tipp auf das Herz bei Fragen, die richtig gut sind.';
   return 'Keine Fragen in dieser Auswahl.';
 }
 
