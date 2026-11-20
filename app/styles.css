@@ -544,6 +544,56 @@ select, input[type="text"], input[type="password"], textarea {
 .question:focus { outline: none; }
 .question:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; }
 
+.qcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+
+.discard {
+  min-height: 2.4rem;
+  margin-left: -0.5rem;
+  padding: 0.2rem 0.5rem;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.discard:hover { background: var(--pink); color: var(--ink); }
+
+.filter-hint {
+  margin-right: 0.6rem;
+  padding: 0.05rem 0.4rem;
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.9rem;
+  padding: 0.4rem 0.4rem 0.4rem 0.8rem;
+  background: var(--ink);
+  color: #f4f1ea;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+@media (prefers-color-scheme: dark) {
+  .toast { background: var(--line); color: var(--ink); }
+}
+.button--small { min-height: 2.4rem; padding: 0.25rem 0.7rem; font-size: 0.8rem; box-shadow: 2px 2px 0 var(--pink); }
+
+.person-filters { margin-top: 2rem; padding-top: 1.25rem; border-top: 3px dashed var(--line); display: grid; gap: 0.75rem; }
+.person-filters h2 { margin: 0; font-size: 1.2rem; text-transform: uppercase; }
+
 .qcard-count {
   margin: 0;
   align-self: flex-end;
@@ -633,8 +683,9 @@ select, input[type="text"], input[type="password"], textarea {
   text-align: left;
   cursor: pointer;
 }
-.qrow-text:hover { background: var(--yellow); color: var(--ink); }
-.qrow-text:hover .row-facts { color: var(--ink); }
+button.qrow-text:hover { background: var(--yellow); color: var(--ink); }
+button.qrow-text:hover .row-facts { color: var(--ink); }
+span.qrow-text { cursor: default; }
 .qrow-actions { display: flex; gap: 0.25rem; align-items: center; }
 .qrow .toggle { min-width: 3rem; }
 .button--tiny { min-height: 2.6rem; min-width: 2.6rem; padding: 0.25rem; }

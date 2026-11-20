@@ -3,11 +3,12 @@
 //   people: [{ id, name }]
 //   vorrat: { personId: { questionId: 'YYYY-MM-DD' } }   noted as a good question for them
 //   asked:  { personId: { questionId: 'YYYY-MM-DD' } }   asked on that day
+//   discarded: { questionId: 'YYYY-MM-DD' }              sorted out, to be deleted from fragen/ later
 
 const KEY = 'fragen:data:v1';
 
 function empty() {
-  return { people: [], vorrat: {}, asked: {} };
+  return { people: [], vorrat: {}, asked: {}, discarded: {} };
 }
 
 let data = load();
@@ -80,6 +81,17 @@ export const toggleAsked = (personId, questionId) => toggle(data.asked, personId
 export const vorratOf = (personId) => ({ ...data.vorrat[personId] });
 export const askedOf = (personId) => ({ ...data.asked[personId] });
 
+// Sorted out ---------------------------------------------------------------------
+
+export const isDiscarded = (questionId) => !!data.discarded[questionId];
+export const discarded = () => ({ ...data.discarded });
+
+export function setDiscarded(questionId, value) {
+  if (value) data.discarded[questionId] = today();
+  else delete data.discarded[questionId];
+  save();
+}
+
 // Export and import ----------------------------------------------------------
 
 /** Machine part for re-import, plus a readable part per person (question texts included). */
@@ -95,11 +107,14 @@ export function exportData(questions) {
       .map(([qid, date]) => ({ id: qid, frage: text.get(qid) || '(gelöschte Frage)', am: date }));
     readable[p.name] = { vorrat, gestellt };
   }
+  const aussortiert = Object.entries(data.discarded)
+    .map(([qid, date]) => ({ id: qid, frage: text.get(qid) || '(schon gelöscht)', am: date }));
   return {
     app: 'fragen',
     version: 1,
     exportiert: new Date().toISOString(),
     personen: readable,
+    aussortiert,
     daten: data,
   };
 }
@@ -127,6 +142,12 @@ export function importData(json) {
           entries++;
         }
       }
+    }
+  }
+  for (const [qid, date] of Object.entries(incoming.discarded || {})) {
+    if (!data.discarded[qid]) {
+      data.discarded[qid] = date;
+      entries++;
     }
   }
   save();

@@ -32,6 +32,8 @@ Rückfragen an Christian immer einzeln stellen, nie mehrere auf einmal.
 
 Christian schickt ab und zu eine `fragen-export-*.json` (aus „Mehr → Exportieren“). Sie enthält unter `personen` lesbar pro Person den Vorrat und die gestellten Fragen (mit Text und Datum) und unter `daten` den Rohzustand für den Import. Typische Aufgaben: zusammenfassen, wem was schon gestellt wurde, passende nächste Fragen vorschlagen, Lücken in Kategorien zeigen. Den Export nicht ins Repo legen (enthält Namen).
 
+**Aussortierte Fragen:** Unter `aussortiert` stehen Fragen, die Christian in der App rausgeworfen hat (mit ID und Text). Diese Zeilen aus `fragen/*.md` löschen (per ID suchen), neu bauen und kurz auflisten, was gelöscht wurde. Die ID danach nicht wiederverwenden. In der App bleiben die Einträge im Speicher, das stört nicht: Die Frage existiert dann einfach nicht mehr.
+
 ## Testen
 
 Lokal: `python3 -m http.server 8765` und `http://127.0.0.1:8765` öffnen (WebCrypto braucht localhost oder https).

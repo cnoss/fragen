@@ -2,6 +2,7 @@ import { decrypt } from './crypto.js';
 import {
   people, person, addPerson, renamePerson, removePerson,
   inVorrat, askedOn, toggleVorrat, toggleAsked, vorratOf, askedOf,
+  isDiscarded, discarded, setDiscarded,
   exportData, importData, getPref, setPref, today,
 } from './store.js';
 
@@ -68,6 +69,9 @@ function focusMain() {
 
 const isNew = (q) => !!q.added && (Date.now() - new Date(q.added)) / 86400000 < NEW_DAYS;
 
+/** All questions except the sorted-out ones. */
+const active = () => state.db.questions.filter((q) => !isDiscarded(q.id));
+
 // ---------------------------------------------------------------------------
 // Filter
 
@@ -89,7 +93,7 @@ function applyFilter(keepId = state.list[state.index]?.id || getPref('pos', null
   if (f.person && !person(f.person)) Object.assign(f, { person: null, status: 'alle' });
   if (f.cat !== 'alle' && f.cat !== 'neu' && !state.cats.has(f.cat)) f.cat = 'alle';
   setPref('filter', f);
-  state.list = state.db.questions.filter((q) => matchesCat(q, f.cat) && matchesStatus(q, f));
+  state.list = active().filter((q) => matchesCat(q, f.cat) && matchesStatus(q, f));
   const index = state.list.findIndex((q) => q.id === keepId);
   state.index = Math.max(0, index);
 }
@@ -147,17 +151,28 @@ function renderCards() {
     installHint(),
     filterBar(),
     h('div', { id: 'stage' }),
+    personFilter(),
   );
-  // Keep the active category chip in view.
-  const active = main.querySelector('.chips [aria-pressed="true"]');
-  if (active) active.parentElement.scrollLeft = active.offsetLeft - active.parentElement.offsetLeft - 16;
+  scrollChipIntoView();
   renderStage();
   focusMain();
 }
 
+// Keep the active category chip in view.
+function scrollChipIntoView() {
+  const chip = main.querySelector('.chips [aria-pressed="true"]');
+  if (chip) chip.parentElement.scrollLeft = chip.offsetLeft - chip.parentElement.offsetLeft - 16;
+}
+
+/** Update the counts on the chips without touching the rest of the page. */
+function refreshChips() {
+  main.querySelector('.filters')?.replaceWith(filterBar());
+  scrollChipIntoView();
+}
+
 function filterBar() {
   const f = state.filter;
-  const base = state.db.questions.filter((q) => matchesStatus(q, f));
+  const base = active().filter((q) => matchesStatus(q, f));
   const count = (cat) => base.filter((q) => matchesCat(q, cat)).length;
   const newCount = count('neu');
 
@@ -166,7 +181,20 @@ function filterBar() {
     onclick: () => { f.cat = value; renderCards(); },
   }, label, h('span', { class: 'segment-count' }, ` ${count(value)}`));
 
+  return h('section', { class: 'filters', 'aria-label': 'Kategorie' },
+    h('div', { class: 'chips', role: 'group', 'aria-label': 'Kategorie' },
+      chip('alle', 'Alle'),
+      (newCount > 0 || f.cat === 'neu') && chip('neu', 'Neu'),
+      state.db.categories.map((c) => chip(c.id, c.titel)),
+    ),
+  );
+}
+
+/** "Fragen für …": below the card, so the top stays calm. */
+function personFilter() {
+  const f = state.filter;
   const persons = people();
+  if (!persons.length) return null;
   const select = h('select', {
     id: 'person-filter',
     onchange: (e) => {
@@ -179,14 +207,10 @@ function filterBar() {
   h('option', { value: '' }, 'alle Personen'),
   persons.map((p) => h('option', { value: p.id, selected: p.id === f.person }, p.name)));
 
-  return h('section', { class: 'filters', 'aria-label': 'Filter' },
-    h('div', { class: 'chips', role: 'group', 'aria-label': 'Kategorie' },
-      chip('alle', 'Alle'),
-      (newCount > 0 || f.cat === 'neu') && chip('neu', 'Neu'),
-      state.db.categories.map((c) => chip(c.id, c.titel)),
-    ),
-    persons.length > 0 && h('div', { class: 'person-filter' },
-      h('label', { for: 'person-filter' }, 'Für'),
+  return h('section', { class: 'person-filters', 'aria-labelledby': 'person-filter-title' },
+    h('h2', { id: 'person-filter-title' }, 'Fragen für …'),
+    h('div', { class: 'person-filter' },
+      h('label', { for: 'person-filter', class: 'visually-hidden' }, 'Person'),
       select,
     ),
     f.person && h('div', { class: 'status-filter', role: 'group', 'aria-label': 'Status' },
@@ -214,7 +238,10 @@ function renderStage({ focus = false } = {}) {
       isNew(q) && h('span', { class: 'badge badge--new' }, 'Neu'),
     ),
     h('h2', { class: 'question', id: 'question', tabindex: '-1' }, q.text),
-    h('p', { class: 'qcard-count' }, `${state.index + 1} / ${state.list.length}`),
+    h('div', { class: 'qcard-foot' },
+      h('button', { type: 'button', class: 'discard', onclick: () => discard(q) }, 'Aussortieren'),
+      h('p', { class: 'qcard-count' }, filterHint(), `${state.index + 1} / ${state.list.length}`),
+    ),
   );
   attachSwipe(card);
 
@@ -228,6 +255,40 @@ function renderStage({ focus = false } = {}) {
     forWhom(q),
   );
   if (focus) document.getElementById('question').focus({ preventScroll: true });
+}
+
+/** Small reminder on the card that a person filter is active (it lives at the bottom). */
+function filterHint() {
+  const f = state.filter;
+  const name = f.person && person(f.person)?.name;
+  if (!name) return null;
+  return h('span', { class: 'filter-hint' }, `${STATUS_LABELS[f.status]} · ${name}`);
+}
+
+/** Sort a question out: gone from all lists right away, with undo. */
+function discard(q) {
+  setDiscarded(q.id, true);
+  const at = state.index;
+  state.list.splice(at, 1);
+  if (state.index >= state.list.length) state.index = 0;
+  renderStage();
+  const stage = document.getElementById('stage');
+  const toast = h('div', { class: 'toast', role: 'status' },
+    h('span', null, 'Aussortiert.'),
+    h('button', {
+      type: 'button', class: 'button button--small',
+      onclick: () => {
+        setDiscarded(q.id, false);
+        state.list.splice(at, 0, q);
+        state.index = at;
+        renderStage({ focus: true });
+        refreshChips();
+        announce('Wiederhergestellt.');
+      },
+    }, 'Rückgängig'));
+  stage.prepend(toast);
+  refreshChips();
+  announce('Frage aussortiert. Rückgängig ist möglich.');
 }
 
 function emptyText() {
@@ -435,7 +496,7 @@ function renderPerson(id) {
     return;
   }
   const byId = new Map(state.db.questions.map((q) => [q.id, q]));
-  const vorrat = Object.entries(vorratOf(id)).filter(([qid]) => !askedOn(id, qid) && byId.has(qid))
+  const vorrat = Object.entries(vorratOf(id)).filter(([qid]) => !askedOn(id, qid) && byId.has(qid) && !isDiscarded(qid))
     .sort((a, b) => state.db.questions.indexOf(byId.get(a[0])) - state.db.questions.indexOf(byId.get(b[0])));
   const asked = Object.entries(askedOf(id)).filter(([qid]) => byId.has(qid)).sort((a, b) => b[1].localeCompare(a[1]));
 
@@ -527,7 +588,7 @@ function renderMore() {
     },
   });
   const built = state.db.built ? new Date(state.db.built).toLocaleDateString('de-DE') : '?';
-  const newCount = state.db.questions.filter(isNew).length;
+  const newCount = active().filter(isNew).length;
 
   setMain(
     h('h1', null, h('span', { class: 'mark' }, 'Mehr')),
@@ -546,12 +607,14 @@ function renderMore() {
 
     h('section', { class: 'more-section' },
       h('h2', null, 'Fragen'),
-      h('p', null, `${state.db.questions.length} Fragen in ${state.db.categories.length} Kategorien, Stand ${built}.`
+      h('p', null, `${active().length} Fragen in ${state.db.categories.length} Kategorien, Stand ${built}.`
         + (newCount ? ` ${plural(newCount, 'Frage ist', 'Fragen sind')} neu.` : '')
         + ` „Neu“ zeigt Fragen der letzten ${NEW_DAYS} Tage.`),
       h('div', { class: 'form-actions' },
         h('button', { type: 'button', class: 'button', disabled: !navigator.onLine, onclick: () => location.reload() }, 'Jetzt aktualisieren')),
     ),
+
+    discardedSection(),
 
     isIOS && !isApp && h('section', { class: 'more-section' },
       h('h2', null, 'Auf den Home-Bildschirm'),
@@ -565,6 +628,26 @@ function renderMore() {
     ),
   );
   focusMain();
+}
+
+function discardedSection() {
+  const byId = new Map(state.db.questions.map((q) => [q.id, q]));
+  const list = Object.entries(discarded()).filter(([qid]) => byId.has(qid)).sort((a, b) => b[1].localeCompare(a[1]));
+  return h('section', { class: 'more-section', 'aria-labelledby': 'discarded-title' },
+    h('h2', { id: 'discarded-title' }, `Aussortiert (${list.length})`),
+    list.length
+      ? [
+        h('p', null, 'Diese Fragen tauchen nirgends mehr auf. Mit dem nächsten Export landen sie bei Claude und werden dann endgültig gelöscht.'),
+        h('ul', { class: 'qlist' }, list.map(([qid, date]) => h('li', { class: 'qrow' },
+          h('span', { class: 'qrow-text' },
+            h('span', null, byId.get(qid).text),
+            h('span', { class: 'row-facts' }, `${state.cats.get(byId.get(qid).cat)?.titel || ''} · ${formatDate(date, { year: true })}`)),
+          h('div', { class: 'qrow-actions' },
+            h('button', { type: 'button', class: 'toggle', onclick: () => { setDiscarded(qid, false); renderMore(); announce('Wiederhergestellt.'); } }, 'Zurückholen')),
+        ))),
+      ]
+      : h('p', { class: 'muted' }, 'Nichts aussortiert. Auf jeder Karte kannst du Fragen, die nicht passen, mit „Aussortieren“ rauswerfen.'),
+  );
 }
 
 function setMoreStatus(text) {
