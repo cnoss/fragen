@@ -1,0 +1,5 @@
+# Klartext-Fragen und Passwort bleiben lokal – nie committen
+fragen/
+_input/
+.passwort
+.DS_Store
