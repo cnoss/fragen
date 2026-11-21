@@ -740,6 +740,16 @@ async function init() {
     navigator.serviceWorker.register('sw.js').catch((error) => console.error(error));
   }
   if (isApp && navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+  // iOS sometimes misplaces the tab bar after the phone wakes up: force a fresh layout.
+  const relayout = () => {
+    if (document.visibilityState !== 'visible') return;
+    const bar = document.querySelector('.tabbar');
+    bar.style.display = 'none';
+    bar.getBoundingClientRect();
+    bar.style.removeProperty('display');
+  };
+  document.addEventListener('visibilitychange', relayout);
+  window.addEventListener('pageshow', relayout);
   const offline = document.getElementById('offline');
   const sync = () => { offline.hidden = navigator.onLine; };
   window.addEventListener('online', sync);
