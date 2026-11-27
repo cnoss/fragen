@@ -18,7 +18,7 @@ Kleine PWA mit Gesprächsfragen für Christian: durchwischen, nach Kategorien fi
 
 Wenn Christian Fragen diktiert:
 
-1. Formulierung behutsam glätten (Rechtschreibung, Fragezeichen), Sinn und Ton lassen. **Anrede immer „du“.**
+1. Formulierung behutsam glätten (Rechtschreibung, Fragezeichen), Sinn und Ton lassen. **Anrede immer „du“.** Ausnahme: In `12-toechter.md` (Fragen an beide Töchter zusammen) ist „ihr“ richtig.
 2. Der passenden Kategorie zuordnen und als Listenpunkt **ohne** `{…}` ans Ende der Datei schreiben. Passt keine: nachfragen oder eine neue Datei vorschlagen (nächste freie Nummer, Frontmatter wie die anderen).
 3. Dubletten und sehr ähnliche Fragen nicht aufnehmen, sondern melden.
 4. `node scripts/build.mjs` ausführen. Das hängt an jede neue Frage `{id datum}` an. Das Datum steuert den Filter „Neu“ (30 Tage).
